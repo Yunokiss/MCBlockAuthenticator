@@ -2,12 +2,14 @@ package Core;
 
 import ConfigAndData.ConfigProcessor;
 import ConfigAndData.DataReader;
+import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
+import org.bukkit.World;
 import world.bentobox.bentobox.api.addons.Addon;
 import world.bentobox.bentobox.api.configuration.Config;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 import java.util.logging.Logger;
 
 import static ConfigAndData.DataReader.*;
@@ -23,6 +25,8 @@ public class Core extends Addon {
     public static Addon ta = null;
     public static Logger logger = null;
     public static List<DataReader.Data> user_data = new ArrayList<>();
+    public static Map<UUID, Data> register_data = new HashMap<>();
+    public static World default_world = null;
 
     public void init(){
         logger = getLogger();
@@ -43,6 +47,7 @@ public class Core extends Addon {
             info("config读取错误！");
             throw new ExceptionInInitializerError("在初始化时发生错误");
         }
+        default_world = Bukkit.getWorld(config.getDefault_world_uuid());
         Debug.sendData("Config got!");
 
         registered_user = new Config<>(this,ConfigProcessor.RegisteredUser.class).loadConfigObject();
@@ -55,7 +60,7 @@ public class Core extends Addon {
         info("开始读取用户信息！");
         readFile();
         getData();
-
+        info("读取用户信息结束！");
 
 
     }
