@@ -1,1 +1,1 @@
-# MCBlockAuthenticator
+# Core.Core
