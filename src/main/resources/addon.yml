@@ -1,0 +1,14 @@
+name: BlockAuthenticator
+main: Core.Core
+version: 1.0
+api-version: 1.21.0
+metrics: true
+icon: "OAK_SAPLING"
+repository: "BlockAuthenticator"
+
+authors: LtSeed
+
+permissions:
+  authenticator.register:
+    description: Allow island command usage
+    default: true

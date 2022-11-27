@@ -13,7 +13,7 @@ import java.util.*;
 import java.util.logging.Logger;
 
 import static ConfigAndData.DataReader.*;
-import static Core.Core.Debug.info;
+import static Core.Core.Debug.*;
 
 
 public class Core extends Addon {
@@ -55,11 +55,12 @@ public class Core extends Addon {
             info("registered_user读取错误！");
             throw new ExceptionInInitializerError("在初始化时发生错误");
         }
+        sendDetail("Data path:"+config.getData_path());
+        sendDetail("debug:"+debug);
         Debug.sendData("registered_user got!");
 
-        info("开始读取用户信息！");
-        readFile();
-        getData();
+        info("start to get user information!");
+        if(readFile()) getData();
         info("读取用户信息结束！");
 
 

@@ -1,18 +1,23 @@
 package ConfigAndData;
 
 import Authenticator.FirstLoginRegistrar;
-import Authenticator.Interaction;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
-import org.bukkit.entity.Player;
 
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import Core.Test;
+import com.alibaba.excel.EasyExcel;
+import com.alibaba.excel.context.AnalysisContext;
+import com.alibaba.excel.event.AnalysisEventListener;
+import com.alibaba.excel.read.builder.ExcelReaderBuilder;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import com.google.gson.JsonObject;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.Setter;
+import org.bukkit.entity.Player;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.*;
 import java.util.*;
 
 import static Core.Core.*;
@@ -20,60 +25,38 @@ import static Core.Core.Debug.*;
 
 public class DataReader {
 
-    public static Workbook data = null;
-    public static Sheet sheet = null;
+    public static ExcelReaderBuilder erb;
 
-    public static void readFile() {
+    public static ExcelListener el = new ExcelListener();
+
+    private static boolean has_uuid;
+
+    public static boolean readFile() {
         sendData("readFile called");
         String data_path = config.getData_path();
         File data_file = new File(data_path);
         if (!data_file.exists()) {
-            info("Excel文件不存在！自动创建默认空文件！");
-            try {
-                data_file.createNewFile();
-            } catch (IOException e) {
-                info("文件创建失败！");
-                sendData(e.getLocalizedMessage());
-            }
+            info("Excel do not exist!");
+            return false;
+        } else {
+            erb = EasyExcel.read(data_file, el);
         }
-        try {
-            if(data_file.getName().endsWith(".xlsx"))
-                data = new XSSFWorkbook(new BufferedInputStream(new FileInputStream(data_file)));
-            else if(data_file.getName().endsWith(".xls"))
-                data = new HSSFWorkbook(new BufferedInputStream(new FileInputStream(data_file)));
-            else info("文件格式不匹配！");
-        } catch (IOException e) {
-            info("Excel文件不存在！");
-            sendData(e.getLocalizedMessage());
-        }
-
-        if (data.getNumberOfSheets() != 1) {
-            info("可能存在未被阅读到的工作表，请核对工作表数据！");
-        }
-        if (data.getNumberOfSheets() == 0){
-            info("空工作表！");
-            return;
-        }
-        sheet = data.getSheetAt(0);
+        return true;
     }
 
     public static void getData() {
         sendData("getData called!");
-        short topRow = sheet.getTopRow();
-        Row title = sheet.getRow(topRow);
-        List<String> clazz = new ArrayList<>();
-        title.cellIterator().forEachRemaining(cell -> clazz.add(cell.getStringCellValue()));
+        List<String> clazz = new ArrayList<>(el.getImportHeads().keySet());
         sendDetail("classes:" + clazz);
         if(clazz.isEmpty())return;
-        if(!clazz.contains("UUID")){
-            title.createCell(title.getLastCellNum()+1).setCellValue("UUID");
-        }
+        has_uuid = clazz.contains("UUID");
         Data.clazz = new ArrayList<>(clazz);
         user_data.clear();
         if(config.getConfirmation() == null)
             config.setConfirmation(clazz.get(clazz.size()-1));
-        for (int row = ++ topRow; row <= sheet.getLastRowNum(); row++) {
-            new Data(sheet.getRow(row));
+        List<JSONObject> dataList = el.getDataList();
+        for (JSONObject jsonObject : dataList) {
+            new Data(jsonObject);
         }
         if(user_data.isEmpty())return;
         List<Map.Entry<String, List<String>>> sort_list = new ArrayList<>(Data.clazz_elements.entrySet());
@@ -88,26 +71,21 @@ public class DataReader {
         }
         Data.clazz = new ArrayList<>(clazz);
         buildTree();
-        try {
-            data.close();
-        } catch (IOException e) {
-            info("excel文件出现IO错误！");
-            sendData(e.getLocalizedMessage());
-        }
     }
 
     private static void buildTree() {
         user_data.forEach(data1 -> {
-            String name = data1.user_data.get(Data.clazz.get(0));
-            DataTreeNode now = new DataTreeNode(DataTreeNode.origin_node, new ArrayList<>(), name, data1);
+            String name = data1.getUser_data().get(Data.clazz.get(0));
+            DataTreeNode now =DataTreeNode.addNode(DataTreeNode.origin_node, 0, name, data1);
             for (int i = 1; i < Data.clazz.size(); i++) {
-                name = data1.user_data.get(Data.clazz.get(i));
+                name = data1.getUser_data().get(Data.clazz.get(i));
                 now = DataTreeNode.addNode(now, i, name, data1);
             }
         });
     }
 
-
+    @Getter
+    @Setter
     public static class DataTreeNode {
         public static DataTreeNode origin_node;
         static {
@@ -132,12 +110,13 @@ public class DataReader {
             return e;
         }
 
-        public DataTreeNode getFather() {
-            return father;
-        }
-
-        public String getName() {
-            return name;
+        public void show(){
+            System.out.println();
+            System.out.print("children:");
+            for (DataTreeNode child : children) {
+                System.out.print(child.getName() + ' ');
+            }
+            children.forEach(DataTreeNode::show);
         }
 
         public DataTreeNode(DataTreeNode father, List<DataTreeNode> children, String name, Data data) {
@@ -161,7 +140,7 @@ public class DataReader {
             }
             String ans;
             player.sendMessage("===========================");
-            player.sendMessage("请在下方选择你的信息：");
+            player.sendMessage("请在下方选择你的信息,并输入它：");
             for (DataTreeNode child : children) {
                 if (child.name != null) {
                     player.sendMessage(child.name);
@@ -184,35 +163,72 @@ public class DataReader {
             throw new InterruptedException("未能完成注册");
         }
 
-        public Data getData() {
-            return data;
-        }
     }
 
+    @Getter
+    @Setter
     public static class Data {
         public static List<String> clazz = new ArrayList<>();
         public static final Map<String, List<String>> clazz_elements = new HashMap<>();
         private final Map<String, String> user_data = new HashMap<>();
         private final UUID uuid;
 
-        public UUID getUuid(){
-            return uuid;
-        }
-
-        public Map<String, String> getUser_data(){
-            return user_data;
-        }
-
-        Data(Row row){
-            Core.Core.user_data.add(new Data(row));
-            for (int i = 0; i <= row.getLastCellNum(); i++) {
-                user_data.put(clazz.get(i),row.getCell(i).getStringCellValue());
-                clazz_elements.getOrDefault(clazz.get(i), new ArrayList<>()).add(row.getCell(i).getStringCellValue());
+        public Data(JSONObject row){
+            Core.Core.user_data.add(this);
+            for (int i = 0; i < row.size(); i++) {
+                user_data.put(clazz.get(i), (String) row.get(i));
+                clazz_elements.getOrDefault(clazz.get(i), new ArrayList<>()).add((String) row.get(i));
             }
-            if(user_data.containsKey("UUID")){
+            if(has_uuid){
                 uuid = UUID.fromString(user_data.get("UUID"));
             } else uuid = UUID.randomUUID();
-            row.createCell(row.getLastCellNum()+1).setCellValue(uuid.toString());
+            row.put(String.valueOf(row.size()),uuid.toString());
+        }
+    }
+
+    @EqualsAndHashCode(callSuper = true)
+    @Getter
+    @Setter
+    public static class ExcelListener extends AnalysisEventListener<Object> {
+        private static final Logger LOGGER = LoggerFactory.getLogger(ExcelListener.class);
+        /**
+         * 自定义用于暂时存储data
+         */
+        private List<JSONObject> dataList = new ArrayList<>();
+
+        /**
+         * 导入表头
+         */
+        private Map<String, Integer> importHeads = new HashMap<>(16);
+
+        /**
+         * 这个每一条数据解析都会来调用
+         */
+        @Override
+        public void invoke(Object data, AnalysisContext context) {
+            String headStr = JSON.toJSONString(data);
+            dataList.add(JSONObject.parseObject(headStr));
+        }
+
+        /**
+         * 这里会一行行的返回头
+         */
+        @Override
+        public void invokeHeadMap(Map<Integer, String> headMap, AnalysisContext context) {
+            for (Integer key : headMap.keySet()) {
+                if (importHeads.containsKey(headMap.get(key))) {
+                    continue;
+                }
+                importHeads.put(headMap.get(key), key);
+            }
+        }
+
+        /**
+         * 所有数据解析完成了 都会来调用
+         */
+        @Override
+        public void doAfterAllAnalysed(AnalysisContext context) {
+            LOGGER.info("Excel解析完毕");
         }
     }
 
