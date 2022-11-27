@@ -2,13 +2,18 @@ package Core;
 
 import ConfigAndData.ConfigProcessor;
 import ConfigAndData.DataReader;
+import org.apache.xmlbeans.ResourceLoader;
+import org.apache.xmlbeans.impl.schema.FileResourceLoader;
+import org.apache.xmlbeans.impl.schema.PathResourceLoader;
 import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.Server;
 import org.bukkit.World;
 import world.bentobox.bentobox.api.addons.Addon;
 import world.bentobox.bentobox.api.configuration.Config;
+import org.apache.xmlbeans.impl.schema.SchemaTypeSystemCompiler;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -17,7 +22,6 @@ import static Core.Core.Debug.*;
 
 
 public class Core extends Addon {
-
     public static ConfigProcessor.Config config = null;
     public static ConfigProcessor.RegisteredUser registered_user = null;
     public static Debug debug = Debug.MUTE;
@@ -29,6 +33,15 @@ public class Core extends Addon {
     public static World default_world = null;
 
     public void init(){
+
+        try {
+            new SchemaTypeSystemCompiler();
+            new PathResourceLoader(new ResourceLoader[1]);
+            ResourceBundle.getBundle("org.apache.xmlbeans.impl.regex.message");
+        } catch (Exception e) {
+            sendData(e.getLocalizedMessage());
+        }
+
         logger = getLogger();
         Debug.sendData("Logger got!");
 
@@ -61,6 +74,7 @@ public class Core extends Addon {
 
         info("start to get user information!");
         if(readFile()) getData();
+        DataTreeNode.origin_node.show();
         info("读取用户信息结束！");
 
 
@@ -122,11 +136,12 @@ public class Core extends Addon {
     @Override
     public void onEnable() {
         init();
-
     }
 
     @Override
     public void onDisable() {
-
+        new Config<>(this,ConfigProcessor.RegisteredUser.class).saveConfigObject(registered_user);
+        new Config<>(this,ConfigProcessor.Config.class).saveConfigObject(config);
+        saveData();
     }
 }

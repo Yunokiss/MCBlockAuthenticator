@@ -4,9 +4,14 @@ import Authenticator.FirstLoginRegistrar;
 
 import Core.Test;
 import com.alibaba.excel.EasyExcel;
+import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.event.AnalysisEventListener;
 import com.alibaba.excel.read.builder.ExcelReaderBuilder;
+import com.alibaba.excel.support.ExcelTypeEnum;
+import com.alibaba.excel.write.ExcelBuilder;
+import com.alibaba.excel.write.ExcelBuilderImpl;
+import com.alibaba.excel.write.metadata.WriteWorkbook;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.google.gson.JsonObject;
@@ -40,6 +45,8 @@ public class DataReader {
             return false;
         } else {
             erb = EasyExcel.read(data_file, el);
+            erb.doReadAllSync();
+            DataTreeNode.origin_node.show();
         }
         return true;
     }
@@ -63,14 +70,22 @@ public class DataReader {
         sort_list.sort(Comparator.comparingInt(o->o.getValue().size()));
         clazz.clear();
         sort_list.forEach(o->clazz.add(o.getKey()));
-        if(Data.clazz_elements.getOrDefault(config.getConfirmation(),new ArrayList<>()).size() == user_data.size()) {
-            clazz.remove(config.getConfirmation());
-        } else {
+        if(Data.clazz_elements.getOrDefault(config.getConfirmation(),new ArrayList<>()).size() != user_data.size()) {
             config.setConfirmation(clazz.get(clazz.size()-1));
-            clazz.remove(config.getConfirmation());
         }
+        if(!has_uuid) clazz.add("UUID");
         Data.clazz = new ArrayList<>(clazz);
         buildTree();
+        saveData();
+    }
+
+    public static void saveData() {
+        String data_path = config.getData_path();
+        List<List<String>> heads = new ArrayList<>();
+        Data.clazz.forEach(o -> heads.add(new ArrayList<>(Set.of(o))));
+        List<List<String>> contents = new ArrayList<>();
+        user_data.forEach(o -> contents.add(o.toList()));
+        EasyExcel.write(data_path).head(heads).sheet(0).doWrite(contents);
     }
 
     private static void buildTree() {
@@ -78,6 +93,7 @@ public class DataReader {
             String name = data1.getUser_data().get(Data.clazz.get(0));
             DataTreeNode now =DataTreeNode.addNode(DataTreeNode.origin_node, 0, name, data1);
             for (int i = 1; i < Data.clazz.size(); i++) {
+                sendData(now.name);
                 name = data1.getUser_data().get(Data.clazz.get(i));
                 now = DataTreeNode.addNode(now, i, name, data1);
             }
@@ -111,11 +127,11 @@ public class DataReader {
         }
 
         public void show(){
-            System.out.println();
-            System.out.print("children:");
+            StringBuilder sb = new StringBuilder(name + " children:");
             for (DataTreeNode child : children) {
-                System.out.print(child.getName() + ' ');
+                sb.append(child.getName()).append(' ');
             }
+            sendData(sb.toString());
             children.forEach(DataTreeNode::show);
         }
 
@@ -127,7 +143,7 @@ public class DataReader {
         }
 
         DataTreeNode(){
-            name = null;
+            name = "First";
             data = null;
             father = null;
             children = new ArrayList<>();
@@ -177,12 +193,24 @@ public class DataReader {
             Core.Core.user_data.add(this);
             for (int i = 0; i < row.size(); i++) {
                 user_data.put(clazz.get(i), (String) row.get(i));
-                clazz_elements.getOrDefault(clazz.get(i), new ArrayList<>()).add((String) row.get(i));
+                List<String> list = clazz_elements.getOrDefault(clazz.get(i), new ArrayList<>());
+                list.add((String) row.get(i));
+                clazz_elements.put(clazz.get(i), list);
+                sendData(clazz_elements.toString());
             }
             if(has_uuid){
                 uuid = UUID.fromString(user_data.get("UUID"));
-            } else uuid = UUID.randomUUID();
-            row.put(String.valueOf(row.size()),uuid.toString());
+            } else {
+                uuid = UUID.randomUUID();
+                user_data.put("UUID",uuid.toString());
+            }
+
+        }
+
+        public List<String> toList() {
+            List<String> r = new ArrayList<>();
+            clazz.forEach(o -> r.add(user_data.get(o)));
+            return r;
         }
     }
 
