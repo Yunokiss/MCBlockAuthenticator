@@ -48,7 +48,11 @@ public class DataReader {
     public static void getData() {
         sendData("getData called!");
         List<String> clazz = new ArrayList<>(el.getImportHeads().keySet());
-        sendDetail("classes:" + clazz);
+        Map<String, Integer> heads = el.getImportHeads();
+        for (String s : heads.keySet()) {
+            clazz.set(heads.get(s),s);
+        }
+        sendDetail("classes-no-sort:" + clazz);
         if(clazz.isEmpty())return;
         has_uuid = clazz.contains("UUID");
         Data.clazz = new ArrayList<>(clazz);
@@ -64,11 +68,9 @@ public class DataReader {
         sort_list.sort(Comparator.comparingInt(o->o.getValue().size()));
         clazz.clear();
         sort_list.forEach(o->clazz.add(o.getKey()));
-        if(Data.clazz_elements.getOrDefault(config.getConfirmation(),new ArrayList<>()).size() != user_data.size()) {
-            config.setConfirmation(clazz.get(clazz.size()-1));
-        }
         if(!has_uuid) clazz.add("UUID");
         Data.clazz = new ArrayList<>(clazz);
+        sendDetail("classes-sort:" + clazz);
         buildTree();
         saveData();
     }
@@ -153,6 +155,7 @@ public class DataReader {
         }
 
         public DataTreeNode ask(Player player) throws InterruptedException {
+            sendData("now choosing " + type_name);
             if(data != null) {
                 FirstLoginRegistrar.registering.remove(player);
                 sendData("choose done");
@@ -178,6 +181,7 @@ public class DataReader {
                 player.sendMessage("===========================");
                 return null;
             }
+            sendData("skip UUID choose");
             player.sendMessage("===========================");
             player.sendMessage("请在下方选择你的信息,并输入它：");
             for (DataTreeNode child : children) {
@@ -224,7 +228,7 @@ public class DataReader {
                 uuid = UUID.randomUUID();
                 user_data.put("UUID",uuid.toString());
             }
-
+            sendData(user_data.toString());
         }
 
         public List<String> toList() {

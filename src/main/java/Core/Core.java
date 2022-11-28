@@ -33,6 +33,7 @@ public class Core extends Addon {
     public static List<DataReader.Data> user_data = new ArrayList<>();
     public static Map<UUID, Data> register_data = new HashMap<>();
     public static World default_world = null;
+    public static float defaultWalkSpeed = 1.0F;
 
     public void init(){
 
@@ -45,6 +46,7 @@ public class Core extends Addon {
         }
 
         logger = getLogger();
+
         Debug.sendData("Logger got!");
 
         Debug.sendDetail("Core.Core.init() called!");

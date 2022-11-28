@@ -31,6 +31,7 @@ public class Interaction implements Listener {
                 for (DataReader.DataTreeNode child : now.getChildren()) {
                     if(Objects.equals(child.getName(), ans)){
                         try {
+                            FirstLoginRegistrar.registering.put(player, child);
                             child.ask(player);
                         } catch (InterruptedException e1) {
                             sendData(e1.getLocalizedMessage());
@@ -44,6 +45,7 @@ public class Interaction implements Listener {
             for (DataReader.DataTreeNode child : now.getChildren()) {
                 if(Objects.equals(child.getChildren().get(0).getName(), ans)){
                     try {
+                        FirstLoginRegistrar.registering.put(player, child.getChildren().get(0));
                         child.getChildren().get(0).ask(player);
                     } catch (InterruptedException e) {
                         sendData(e.getLocalizedMessage());

@@ -40,7 +40,6 @@ public class FirstLoginRegistrar extends world.bentobox.bentobox.listeners.JoinL
         UUID uniqueId = player.getUniqueId();
         if(registered_user.getRegistered_user().contains(uniqueId)) return;
         sendDetail(player.getName() + "start registering");
-        float walkSpeed = player.getWalkSpeed();
         player.setWalkSpeed(0);
         DataReader.DataTreeNode node = DataReader.DataTreeNode.origin_node;
         FirstLoginRegistrar.registering.put(player, DataReader.DataTreeNode.origin_node);
@@ -49,7 +48,7 @@ public class FirstLoginRegistrar extends world.bentobox.bentobox.listeners.JoinL
                 DataReader.Data data;
                 data = ask.getData();
                 if(data == null){
-                    player.setWalkSpeed(walkSpeed);
+                    player.setWalkSpeed(defaultWalkSpeed);
                     player.kickPlayer("请正确完成注册！");
                     return;
                 }
@@ -57,7 +56,7 @@ public class FirstLoginRegistrar extends world.bentobox.bentobox.listeners.JoinL
                 registering.remove(player);
                 registered_user.getRegistered_user().add(uniqueId);
                 registered_user.getRegistered_user_data().put(uniqueId,data.getUuid());
-                player.setWalkSpeed(walkSpeed);
+                player.setWalkSpeed(defaultWalkSpeed);
                 player.sendMessage(ChatColor.GREEN + "成功注册！");
                 String name = ask.getName(config.getConfirmation());
                 name = name==null ? "Your Block" : name;
@@ -66,9 +65,11 @@ public class FirstLoginRegistrar extends world.bentobox.bentobox.listeners.JoinL
                 if (islands.nameExists(default_world,name)) {
                     for (Island island : islands.getIslands(default_world)) {
                         if(Objects.equals(island.getName(), name)){
-                            islands.deleteIsland(Objects.requireNonNull(islands.getIsland(default_world, User.getInstance(player))),true,null);
+                            try {
+                                islands.deleteIsland(Objects.requireNonNull(islands.getIsland(default_world, User.getInstance(player))),true,null);
+                            } catch (Exception ignored) {
+                            }
                             island.addMember(uniqueId);
-                            player.teleport(Objects.requireNonNull(island.getSpawnPoint(island.getWorld().getEnvironment())));
                         }
                     }
                 } else {
@@ -81,7 +82,7 @@ public class FirstLoginRegistrar extends world.bentobox.bentobox.listeners.JoinL
             });
             node.ask(player);
         } catch (InterruptedException e) {
-            player.setWalkSpeed(walkSpeed);
+            player.setWalkSpeed(defaultWalkSpeed);
             player.kickPlayer("请正确完成注册！");
         }
 

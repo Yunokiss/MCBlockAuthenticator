@@ -7,12 +7,11 @@ import world.bentobox.bentobox.api.configuration.ConfigObject;
 import world.bentobox.bentobox.api.configuration.StoreAt;
 
 import java.io.File;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 import Core.*;
 
+import static Core.Core.Debug.sendData;
 import static Core.Core.Debug.sendDetail;
 
 public class ConfigProcessor {
@@ -40,11 +39,20 @@ public class ConfigProcessor {
     @StoreAt(filename="registered_user.yml") // Explicitly call out what name this should have.
     public static class RegisteredUser implements ConfigObject {
         @ConfigEntry(path = "registered")
-        private List<UUID> registered_user;
+        private List<String> registered_user = new ArrayList<>();
 
         @ConfigEntry(path = "registered-users")
-        private Map<UUID, UUID> registered_user_data;
+        private Map<UUID, UUID> registered_user_data = new HashMap<>();
 
+        public List<UUID> getRegistered_user() {
+            List<UUID> uuids = new ArrayList<>();
+            try {
+                registered_user.forEach(r -> uuids.add(UUID.fromString(r)));
+            } catch (Exception e) {
+                sendData(e.getLocalizedMessage());
+            }
+            return uuids;
+        }
     }
 
 
