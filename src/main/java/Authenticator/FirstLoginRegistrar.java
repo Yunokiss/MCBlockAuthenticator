@@ -2,8 +2,9 @@ package Authenticator;
 
 import ConfigAndData.DataReader;
 import org.bukkit.ChatColor;
-import org.bukkit.Location;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.eclipse.jdt.annotation.NonNull;
 import world.bentobox.bentobox.BentoBox;
@@ -16,61 +17,74 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
+import static ConfigAndData.DataReader.DataTreeNode.done;
 import static Core.Core.*;
+import static Core.Core.Debug.sendData;
+import static Core.Core.Debug.sendDetail;
 
 public class FirstLoginRegistrar extends world.bentobox.bentobox.listeners.JoinLeaveListener {
 
-    public static Map<Player, String> registering = new HashMap<>();
+    public static Map<Player, DataReader.DataTreeNode> registering = new HashMap<>();
     @Override
+    @EventHandler(priority = EventPriority.HIGH)
     public void onPlayerJoin(PlayerJoinEvent playerJoinEvent){
+        sendData("Authenticator.FirstLoginRegistrar.onPlayerJoin called");
+        workAsync(playerJoinEvent);
+        new Thread(() -> workAsync(playerJoinEvent)).start();
+    }
+
+    private void workAsync(PlayerJoinEvent playerJoinEvent) {
         Player player = playerJoinEvent.getPlayer();
         UUID uniqueId = player.getUniqueId();
         if(registered_user.getRegistered_user().contains(uniqueId)) return;
-
+        sendDetail(player.getName() + "start registering");
         float walkSpeed = player.getWalkSpeed();
         player.setWalkSpeed(0);
         DataReader.DataTreeNode node = DataReader.DataTreeNode.origin_node;
-        registering.put(player,"!");
-        DataReader.Data data = null;
-        DataReader.DataTreeNode dataTreeNode = null;
+        FirstLoginRegistrar.registering.put(player, DataReader.DataTreeNode.origin_node);
         try {
-            DataReader.DataTreeNode ask = node.ask(player);
-            dataTreeNode = ask.getFather();
-            data = ask.getData();
+            done.put(player, ask -> {
+                DataReader.Data data;
+                data = ask.getData();
+                if(data == null){
+                    player.setWalkSpeed(walkSpeed);
+                    player.kickPlayer("请正确完成注册！");
+                    return;
+                }
+                register_data.put(player.getUniqueId(),data);
+                registering.remove(player);
+                registered_user.getRegistered_user().add(uniqueId);
+                registered_user.getRegistered_user_data().put(uniqueId,data.getUuid());
+                player.setWalkSpeed(walkSpeed);
+                player.sendMessage(ChatColor.GREEN + "成功注册！");
+                String name = ask.getName(config.getConfirmation());
+                name = name==null ? "Your Block" : name;
+                done.remove(player);
+                IslandsManager islands = ta.getIslands();
+                if (islands.nameExists(default_world,name)) {
+                    for (Island island : islands.getIslands(default_world)) {
+                        if(Objects.equals(island.getName(), name)){
+                            islands.deleteIsland(Objects.requireNonNull(islands.getIsland(default_world, User.getInstance(player))),true,null);
+                            island.addMember(uniqueId);
+                            player.teleport(Objects.requireNonNull(island.getSpawnPoint(island.getWorld().getEnvironment())));
+                        }
+                    }
+                } else {
+                    CompletableFuture<Boolean> future = ta.getIslandsManager().homeTeleportAsync(default_world, player, true);
+                    future.complete(true);
+                    Island island = islands.getIsland(default_world, User.getInstance(player));
+                    assert island != null;
+                    island.setName(name);
+                }
+            });
+            node.ask(player);
         } catch (InterruptedException e) {
             player.setWalkSpeed(walkSpeed);
             player.kickPlayer("请正确完成注册！");
         }
-        if(data == null){
-            player.setWalkSpeed(walkSpeed);
-            player.kickPlayer("请正确完成注册！");
-            return;
-        }
-        register_data.put(player.getUniqueId(),data);
-        registering.remove(player);
-        registered_user.getRegistered_user().add(uniqueId);
-        registered_user.getRegistered_user_data().put(uniqueId,data.getUuid());
-        player.setWalkSpeed(walkSpeed);
-        player.sendMessage(ChatColor.GREEN + "成功注册！");
-        String name = dataTreeNode.getName();
 
-        IslandsManager islands = ta.getIslands();
-        if (islands.nameExists(default_world,name)) {
-            for (Island island : islands.getIslands(default_world)) {
-                if(Objects.equals(island.getName(), name)){
-                    islands.deleteIsland(Objects.requireNonNull(islands.getIsland(default_world, User.getInstance(player))),true,null);
-                    island.addMember(uniqueId);
-                    player.teleport(Objects.requireNonNull(island.getSpawnPoint(island.getWorld().getEnvironment())));
-                }
-            }
-        } else {
-            CompletableFuture<Boolean> future = ta.getIslandsManager().homeTeleportAsync(default_world, player, true);
-            future.complete(true);
-            Island island = islands.getIsland(default_world, User.getInstance(player));
-            assert island != null;
-            island.setName(name);
-        }
     }
 
     public FirstLoginRegistrar(@NonNull BentoBox plugin) {

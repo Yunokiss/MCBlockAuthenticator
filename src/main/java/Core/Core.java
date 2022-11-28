@@ -1,5 +1,7 @@
 package Core;
 
+import Authenticator.FirstLoginRegistrar;
+import Authenticator.Interaction;
 import ConfigAndData.ConfigProcessor;
 import ConfigAndData.DataReader;
 import org.apache.xmlbeans.ResourceLoader;
@@ -77,7 +79,8 @@ public class Core extends Addon {
         DataTreeNode.origin_node.show();
         info("读取用户信息结束！");
 
-
+        ta.registerListener(new FirstLoginRegistrar(ta.getPlugin()));
+        ta.registerListener(new Interaction());
     }
 
     /**

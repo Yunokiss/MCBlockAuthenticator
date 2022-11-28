@@ -2,19 +2,12 @@ package ConfigAndData;
 
 import Authenticator.FirstLoginRegistrar;
 
-import Core.Test;
 import com.alibaba.excel.EasyExcel;
-import com.alibaba.excel.ExcelWriter;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.event.AnalysisEventListener;
 import com.alibaba.excel.read.builder.ExcelReaderBuilder;
-import com.alibaba.excel.support.ExcelTypeEnum;
-import com.alibaba.excel.write.ExcelBuilder;
-import com.alibaba.excel.write.ExcelBuilderImpl;
-import com.alibaba.excel.write.metadata.WriteWorkbook;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.google.gson.JsonObject;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
@@ -24,6 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.*;
+import java.util.function.Consumer;
 
 import static Core.Core.*;
 import static Core.Core.Debug.*;
@@ -85,7 +79,11 @@ public class DataReader {
         Data.clazz.forEach(o -> heads.add(new ArrayList<>(Set.of(o))));
         List<List<String>> contents = new ArrayList<>();
         user_data.forEach(o -> contents.add(o.toList()));
-        EasyExcel.write(data_path).head(heads).sheet(0).doWrite(contents);
+        try {
+            EasyExcel.write(data_path).head(heads).sheet(0).doWrite(contents);
+        } catch (Exception e) {
+            sendNormalData(e.getLocalizedMessage());
+        }
     }
 
     private static void buildTree() {
@@ -107,10 +105,13 @@ public class DataReader {
         static {
             origin_node = new DataTreeNode();
         }
+
+        public static Map<Player, Consumer<DataTreeNode>> done = new HashMap<>();
         final DataTreeNode father;
         final List<DataTreeNode> children;
         final String name;
         final Data data;
+        final String type_name;
 
         public static DataTreeNode addNode(DataTreeNode father, int i, String name, Data data1){
             if (Data.clazz.size()-1 != i) {
@@ -121,7 +122,7 @@ public class DataReader {
                     return child;
                 }
             }
-            DataTreeNode e = new DataTreeNode(father, new ArrayList<>(), name, data1);
+            DataTreeNode e = new DataTreeNode(father, new ArrayList<>(), name, data1, Data.clazz.get(i));
             father.children.add(e);
             return e;
         }
@@ -135,11 +136,12 @@ public class DataReader {
             children.forEach(DataTreeNode::show);
         }
 
-        public DataTreeNode(DataTreeNode father, List<DataTreeNode> children, String name, Data data) {
+        public DataTreeNode(DataTreeNode father, List<DataTreeNode> children, String name, Data data, String type_name) {
             this.father = father;
             this.children = children;
             this.name = name;
             this.data = data;
+            this.type_name = type_name;
         }
 
         DataTreeNode(){
@@ -147,38 +149,53 @@ public class DataReader {
             data = null;
             father = null;
             children = new ArrayList<>();
+            type_name = "All";
         }
 
         public DataTreeNode ask(Player player) throws InterruptedException {
             if(data != null) {
                 FirstLoginRegistrar.registering.remove(player);
+                sendData("choose done");
+                done.get(player).accept(this);
                 return this;
             }
-            String ans;
+            if(children.size()==1){
+                sendData("skip choose");
+                FirstLoginRegistrar.registering.put(player,children.get(0));
+                return children.get(0).ask(player);
+            }
+            try {
+                //noinspection ResultOfMethodCallIgnored
+                UUID.fromString(children.get(0).name);
+            } catch (IllegalArgumentException e){
+                player.sendMessage("===========================");
+                player.sendMessage("请在下方选择你的信息,并输入它：");
+                for (DataTreeNode child : children) {
+                    if (child.name != null) {
+                        player.sendMessage(child.name);
+                    }
+                }
+                player.sendMessage("===========================");
+                return null;
+            }
             player.sendMessage("===========================");
             player.sendMessage("请在下方选择你的信息,并输入它：");
             for (DataTreeNode child : children) {
-                if (child.name != null) {
-                    player.sendMessage(child.name);
+                if (child.getChildren().get(0).name != null) {
+                    player.sendMessage(child.getChildren().get(0).name);
                 }
             }
             player.sendMessage("===========================");
-            while(FirstLoginRegistrar.registering.get(player).equals("!")){
-                Thread.sleep(20);
-            }
-            ans = FirstLoginRegistrar.registering.get(player);
-            FirstLoginRegistrar.registering.put(player,"!");
-            if(ans == null) {
-                return ask(player);
-            }
-            for (DataTreeNode child : children) {
-                if(Objects.equals(child.name, ans)){
-                    return child.ask(player);
-                }
-            }
-            throw new InterruptedException("未能完成注册");
+            return null;
+
         }
 
+        public String getName(String confirmation) {
+            if(type_name.equals(confirmation)) return name;
+            else if (father != null) {
+                return father.getName(confirmation);
+            } else return null;
+        }
     }
 
     @Getter
@@ -192,9 +209,12 @@ public class DataReader {
         public Data(JSONObject row){
             Core.Core.user_data.add(this);
             for (int i = 0; i < row.size(); i++) {
-                user_data.put(clazz.get(i), (String) row.get(i));
+                @SuppressWarnings("SuspiciousMethodCalls")
+                String s = (String) row.get(i);
+                user_data.put(clazz.get(i), s);
                 List<String> list = clazz_elements.getOrDefault(clazz.get(i), new ArrayList<>());
-                list.add((String) row.get(i));
+                if(!list.contains(s))
+                    list.add(s);
                 clazz_elements.put(clazz.get(i), list);
                 sendData(clazz_elements.toString());
             }
